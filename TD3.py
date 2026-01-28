@@ -179,3 +179,37 @@ class TD3(object):
 		self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer"))
 		self.actor_target = copy.deepcopy(self.actor)
 		
+	def save_checkpoint(self, path: str):
+		payload = {
+			"actor": self.actor.state_dict(),
+			"actor_target": self.actor_target.state_dict(),
+			"actor_opt": self.actor_optimizer.state_dict(),
+			"critic": self.critic.state_dict(),
+			"critic_target": self.critic_target.state_dict(),
+			"critic_opt": self.critic_optimizer.state_dict(),
+			"total_it": self.total_it,
+			"max_action": self.max_action,
+			"discount": self.discount,
+			"tau": self.tau,
+			"policy_noise": self.policy_noise,
+			"noise_clip": self.noise_clip,
+			"policy_freq": self.policy_freq,
+		}
+
+		torch.save(payload, path)
+	
+	def load_checkpoint(self, path: str, map_location=None):
+		if map_location is None:
+			map_location = self.device
+
+		payload = torch.load(path, map_location=map_location)
+
+		self.actor.load_state_dict(payload["actor"])
+		self.actor_target.load_state_dict(payload["actor_target"])
+		self.actor_optimizer.load_state_dict(payload["actor_opt"])
+
+		self.critic.load_state_dict(payload["critic"])
+		self.critic_target.load_state_dict(payload["critic_target"])
+		self.critic_optimizer.load_state_dict(payload["critic_opt"])
+
+		self.total_it = int(payload.get("total_it", 0))
