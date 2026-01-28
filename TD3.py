@@ -9,12 +9,14 @@ import torch.nn.functional as F
 
 
 class Actor(nn.Module):
-	def __init__(self, state_dim, action_dim, max_action):
+	def __init__(self, state_dim, action_dim, max_action, layer_size):
 		super(Actor, self).__init__()
 
-		self.l1 = nn.Linear(state_dim, 256)
-		self.l2 = nn.Linear(256, 256)
-		self.l3 = nn.Linear(256, action_dim)
+		self.H = layer_size
+
+		self.l1 = nn.Linear(state_dim, self.H)
+		self.l2 = nn.Linear(self.H, self.H)
+		self.l3 = nn.Linear(self.H, action_dim)
 		
 		self.max_action = max_action
 		
@@ -26,18 +28,20 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-	def __init__(self, state_dim, action_dim):
+	def __init__(self, state_dim, action_dim, layer_size):
 		super(Critic, self).__init__()
 
+		self.H = layer_size
+
 		# Q1 architecture
-		self.l1 = nn.Linear(state_dim + action_dim, 256)
-		self.l2 = nn.Linear(256, 256)
-		self.l3 = nn.Linear(256, 1)
+		self.l1 = nn.Linear(state_dim + action_dim, self.H)
+		self.l2 = nn.Linear(self.H, self.H)
+		self.l3 = nn.Linear(self.H, 1)
 
 		# Q2 architecture
-		self.l4 = nn.Linear(state_dim + action_dim, 256)
-		self.l5 = nn.Linear(256, 256)
-		self.l6 = nn.Linear(256, 1)
+		self.l4 = nn.Linear(state_dim + action_dim, self.H)
+		self.l5 = nn.Linear(self.H, self.H)
+		self.l6 = nn.Linear(self.H, 1)
 
 
 	def forward(self, state, action):
@@ -68,7 +72,10 @@ class TD3(object):
 		state_dim,
 		action_dim,
 		max_action,
+		actor_layer_size,
+		critic_layer_size,
 		device,
+		dtype=torch.float32,
 		discount=0.99,
 		tau=0.005,
 		policy_noise=0.2,
@@ -76,12 +83,16 @@ class TD3(object):
 		policy_freq=2,
 	):
 		self.device = device
+		self.dtype = dtype
 
-		self.actor = Actor(state_dim, action_dim, max_action).to(self.device)
+		self.actor_layer_size = actor_layer_size
+		self.critic_layer_size = critic_layer_size
+
+		self.actor = Actor(state_dim, action_dim, max_action, self.actor_layer_size).to(self.device).to(dtype=self.dtype)
 		self.actor_target = copy.deepcopy(self.actor)
 		self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
 
-		self.critic = Critic(state_dim, action_dim).to(self.device)
+		self.critic = Critic(state_dim, action_dim, self.critic_layer_size).to(self.device).to(dtype=self.dtype)
 		self.critic_target = copy.deepcopy(self.critic)
 		self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=3e-4)
 
@@ -96,7 +107,7 @@ class TD3(object):
 
 
 	def select_action(self, state):
-		state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
+		state = torch.as_tensor(state.reshape(1, -1), device=self.device, dtype=self.dtype)
 		return self.actor(state).cpu().data.numpy().flatten()
 
 
